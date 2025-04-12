@@ -2,3 +2,12 @@
 .Rhistory
 .RData
 .Ruserdata
+<<<<<<< HEAD
+=======
+
+data\raw\sample_submission.csv
+data\raw\test-image.hdf5
+data\raw\test-metadata.csv
+data\raw\train-image.hdf5
+data\raw\train-metadata.csv
+>>>>>>> 8efde08951aa450ecc309a591d4c070c654ceb50
