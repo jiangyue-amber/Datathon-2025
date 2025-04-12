@@ -1,1 +1,1 @@
-# Datathon 2025 - Skin Cancer Classification 
+# SLICE-3D Skin Cancer Detection - Datathon
