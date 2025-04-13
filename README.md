@@ -3,7 +3,7 @@ Slice 3D is an AI-powered pipeline designed to aid early skin cancer detection b
 
 [📽️ View the Presentation](https://docs.google.com/presentation/d/1HVV0XMw2ewPjJDc42jUARw4lu4iKR50l5jvVxR1PcPQ/edit?usp=sharing)
 
-[📥 Download the Dataset]([https://challenge.isic-archive.com/data/](https://drive.google.com/drive/folders/1QERvbpXwIlfCeM1OxMIRUwKniZLRxXrz?usp=drive_link)) *(via ISIC Skin Lesion Challenge)*
+[📥 Download the Dataset](https://drive.google.com/drive/folders/1QERvbpXwIlfCeM1OxMIRUwKniZLRxXrz) *(via ISIC Skin Lesion Challenge)*
 
 ---
 
