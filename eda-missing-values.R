@@ -102,18 +102,39 @@ cancer_train %>%
 # resampling to address imbalance of 400,000 benign vs 400 malignant
 # Extract only unique rows with unique patient_ids to ensure INDEPENDENCE ASSUMPTION
 
-# keep all malignant cases
-# sample two times the number of malignant cases for benign cases
+# filter first occurrence of each unique patient_id
 # filter out missing values, and keep only complete rows from the selected variable
+# FIRST ATTEMPT
 malignant_sample <- cancer_train %>% filter(target == 1) %>% distinct(patient_id, .keep_all = TRUE) # 393 -> 259 
-# benign_sample <- cancer_train %>% filter(target == 0) %>% sample_n(nrow(malignant_sample) * 5)  # 1:5 ratio
 benign_sample <- cancer_train %>% filter(target == 0) %>% distinct(patient_id, .keep_all = TRUE) # 400666 -> 1041
 undersampled_data <- bind_rows(malignant_sample, benign_sample) %>%
   select(target, age_approx, clin_size_long_diam_mm, anatom_site_general) %>%
   na.omit()
 
-table(undersampled_data$target) # 1014 benign, 256 malignant
+# filter unique patient_id by confidence in order to improve performance of the logistic model
+# SECOND ATTEMPT
+malignant_sample <- cancer_train %>%
+  filter(target == 1) %>%
+  group_by(patient_id) %>%
+  slice_max(order_by = tbp_lv_dnn_lesion_confidence, n = 1, with_ties = FALSE) %>%
+  ungroup()
 
+benign_sample <- cancer_train %>%
+  filter(target == 0) %>%
+  group_by(patient_id) %>%
+  slice_max(order_by = tbp_lv_dnn_lesion_confidence, n = 1, with_ties = FALSE) %>%
+  ungroup()
+
+undersampled_data <- bind_rows(malignant_sample, benign_sample) %>%
+  select(target, age_approx, clin_size_long_diam_mm, anatom_site_general) %>%
+  na.omit()
+
+
+
+
+table(undersampled_data$target)
+
+# FIRST ATTEMPT and SECOND: 1014 benign, 256 malignant
 
 
 # Note: lower AIC is better
@@ -124,13 +145,13 @@ origlm4 <- glm(target ~ age_approx + clin_size_long_diam_mm + anatom_site_genera
 
 summary(origlm1)
                                                                                                                                            # With 2:1 ratio.  With 5:1 ratio  With unique patients (1042 -> 1270)
-underlm1 <- glm(target ~ age_approx, data=undersampled_data, family=binomial(link="logit"))                                                # AIC 1468.8         2086.1           1227.1
-underlm2 <- glm(target ~ age_approx + anatom_site_general, data=undersampled_data, family=binomial(link="logit"))                          # AIC 1397.7.        1991.1           1198.1
-underlm3 <- glm(target ~ age_approx + clin_size_long_diam_mm, data=undersampled_data, family=binomial(link="logit"))                       # AIC 1367.7         1928.9           1102.6
-underlm4 <- glm(target ~ age_approx + clin_size_long_diam_mm + anatom_site_general, data=undersampled_data, family=binomial(link="logit")) # AIC 1275.4         1819.2           1063.6
+underlm1 <- glm(target ~ age_approx, data=undersampled_data, family=binomial(link="logit"))                                                # AIC 1468.8         2086.1        1.   1227.1       2.   1227.7
+underlm2 <- glm(target ~ age_approx + anatom_site_general, data=undersampled_data, family=binomial(link="logit"))                          # AIC 1397.7.        1991.1             1198.1            1148.7
+underlm3 <- glm(target ~ age_approx + clin_size_long_diam_mm, data=undersampled_data, family=binomial(link="logit"))                       # AIC 1367.7         1928.9             1102.6            1021.5
+underlm4 <- glm(target ~ age_approx + clin_size_long_diam_mm + anatom_site_general, data=undersampled_data, family=binomial(link="logit")) # AIC 1275.4         1819.2             1063.6            915.3
 
 # interaction between size and location doesnt help the model much, use likelihood test to confirm
-underlm5 <- glm(target ~ age_approx + clin_size_long_diam_mm + anatom_site_general + anatom_site_general*clin_size_long_diam_mm, data=undersampled_data, family=binomial(link="logit")) # AIC 1255.1     1793.7
+underlm5 <- glm(target ~ age_approx + clin_size_long_diam_mm + anatom_site_general + anatom_site_general*clin_size_long_diam_mm, data=undersampled_data, family=binomial(link="logit")) # AIC 1255.1     1793.7   | 2. 914.86
 
 summary(underlm5)
 
@@ -141,14 +162,14 @@ anova(underlm3, underlm4, test = "Chisq")
 
 # likelihood ratio test (p-value = 0.003821)
 # Is size:location interaction significant to the model? Yes, pvalue is small
+# SECOND ATTEMPT: p-value is large (0.076) interaction term not needed
 anova(underlm4, underlm5, test = "Chisq")
-
 
 
 # underlm5 has ROC curve of 0.7537 (2:1 ratio)
 # underlm5 has ROC curve of 0.7477 (5:1 ratio)
 # underlm5 has ROC curve of 0.7746 (unique patients)
-predicted_probs <- predict(underlm5, type = "response")
+predicted_probs <- predict(underlm4, type = "response")
 auc_result <- roc(undersampled_data$target, predicted_probs) 
 print(auc_result)
 plot(auc_result, col = "blue", main = "ROC Curve")
