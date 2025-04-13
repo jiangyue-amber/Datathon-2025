@@ -1,5 +1,7 @@
 library(tidyverse)
 library(pROC)
+library(tidymodels)
+library(randomForest)
 
 cancer_train <- read.csv("/Users/yvargas/isic-2024-challenge/train-metadata.csv", header=TRUE)
 summary(cancer_train)
@@ -130,8 +132,6 @@ undersampled_data <- bind_rows(malignant_sample, benign_sample) %>%
   na.omit()
 
 
-
-
 table(undersampled_data$target)
 
 # FIRST ATTEMPT and SECOND: 1014 benign, 256 malignant
@@ -177,25 +177,8 @@ plot(auc_result, col = "blue", main = "ROC Curve")
 
 ###################################################################
 # RANDOM FOREST for feature selection for logistic regression predictors
-undersampled_data <- bind_rows(malignant_sample, benign_sample) %>%
-  select(-patient_id, -isic_id, -iddx_full, -iddx_1, -iddx_2, -iddx_3,
-         -iddx_4, -iddx_5, -mel_mitotic_index, -mel_thick_mm, -attribution,
-         -lesion_id, -image_type) %>%
-  na.omit()
-
-set.seed(777)
-under_split <- initial_split(undersampled_data, prop = 0.8)
-under_train <- training(under_split)
-under_test <- testing(under_split)
-
-treeC_model3 <- decision_tree(mode = "classification", engine = "rpart", cost_complexity = tune())
-
-treeC_recipe_AD3 <- recipe(cog_status ~ . ,data = udscog3_train)
-
-treeC_wflow_AD3 <- workflow() |>
-  add_model(treeC_model3) |>
-  add_recipe(treeC_recipe_AD3)
-
-
-
-
+# undersampled_data_selected_vars <- bind_rows(malignant_sample, benign_sample) %>%
+#  select(-patient_id, -isic_id, -iddx_full, -iddx_1, -iddx_2, -iddx_3,
+#         -iddx_4, -iddx_5, -mel_mitotic_index, -mel_thick_mm, -attribution,
+#         -lesion_id, -image_type, -tbp_lv_x, -tbp_lv_y, -tbp_lv_z) %>%
+#  na.omit()
