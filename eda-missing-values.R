@@ -1,4 +1,5 @@
 library(tidyverse)
+library(pROC)
 
 cancer_train <- read.csv("/Users/yvargas/isic-2024-challenge/train-metadata.csv", header=TRUE)
 summary(cancer_train)
@@ -82,7 +83,56 @@ ggplot(cancer_train, aes(x=factor(target), y=tbp_lv_norm_color)) +
   ylim(0, 11) +
   geom_boxplot()
 
+# target vs tbp_lv_deltaLBnorm
 ggplot(cancer_train, aes(x=factor(target), y=tbp_lv_deltaLBnorm)) +
-  ylim(0, 11) +
   geom_boxplot()
+
+
+###################################################################
+# resampling to address imbalance of 400,000 benign vs 400 malignant
+
+# keep all malignant cases
+# sample two times the number of malignant cases for benign cases
+# filter out missing values, and keep only complete rows from the selected variable
+malignant_sample <- cancer_train %>% filter(target == 1)
+benign_sample <- cancer_train %>% filter(target == 0) %>% sample_n(nrow(malignant_sample) * 2)  # 1:2 ratio
+
+undersampled_data <- bind_rows(malignant_sample, benign_sample) %>%
+  select(target, age_approx, clin_size_long_diam_mm, anatom_site_general) %>%
+  na.omit()
+
+# Note: lower AIC is better
+origlm1 <- glm(target ~ age_approx, data=cancer_train, family=binomial(link="logit"))                                                # AIC 6163.6
+origlm2 <- glm(target ~ age_approx + anatom_site_general, data=cancer_train, family=binomial(link="logit"))                          # AIC 5988
+origlm3 <- glm(target ~ age_approx + clin_size_long_diam_mm, data=cancer_train, family=binomial(link="logit"))                       # AIC 5943.1
+origlm4 <- glm(target ~ age_approx + clin_size_long_diam_mm + anatom_site_general, data=cancer_train, family=binomial(link="logit")) # AIC 5780.4
+
+summary(origlm1)
+
+underlm1 <- glm(target ~ age_approx, data=undersampled_data, family=binomial(link="logit"))                                                # AIC 1468.8
+underlm2 <- glm(target ~ age_approx + anatom_site_general, data=undersampled_data, family=binomial(link="logit"))                          # AIC 1397.7
+underlm3 <- glm(target ~ age_approx + clin_size_long_diam_mm, data=undersampled_data, family=binomial(link="logit"))                       # AIC 1367.7
+underlm4 <- glm(target ~ age_approx + clin_size_long_diam_mm + anatom_site_general, data=undersampled_data, family=binomial(link="logit")) # AIC 1275.4
+
+# interaction between size and location doesnt help the model much
+underlm5 <- glm(target ~ age_approx + clin_size_long_diam_mm + anatom_site_general + anatom_site_general*clin_size_long_diam_mm, data=undersampled_data, family=binomial(link="logit")) # AIC 1255.1
+
+summary(underlm5)
+
+
+# likelihood ratio test
+# Is anatom_site_general significant to the model? Yes, pvalue is small
+anova(underlm3, underlm4, test = "Chisq")
+
+# likelihood ratio test
+# Is size:location interaction significant to the model? Yes, pvalue is small
+anova(underlm4, underlm5, test = "Chisq")
+
+
+
+# underlm5 has ROC curve of 0.7537
+predicted_probs <- predict(underlm5, type = "response")
+auc_result <- roc(undersampled_data$target, predicted_probs) 
+print(auc_result)
+plot(auc_result, col = "blue", main = "ROC Curve")
 
