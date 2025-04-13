@@ -1,1 +1,1 @@
-# Datathon-2025
+# SLICE-3D Skin Cancer Detection - Datathon
