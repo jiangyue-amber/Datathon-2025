@@ -1,7 +1,6 @@
 library(tidyverse)
+library(caret)
 library(pROC)
-library(tidymodels)
-library(randomForest)
 
 cancer_train <- read.csv("/Users/yvargas/isic-2024-challenge/train-metadata.csv", header=TRUE)
 summary(cancer_train)
@@ -114,7 +113,7 @@ undersampled_data <- bind_rows(malignant_sample, benign_sample) %>%
   na.omit()
 
 # filter unique patient_id by confidence in order to improve performance of the logistic model
-# SECOND ATTEMPT
+# SECOND ATTEMPT: USE IN MODELING
 malignant_sample <- cancer_train %>%
   filter(target == 1) %>%
   group_by(patient_id) %>%
@@ -177,8 +176,76 @@ plot(auc_result, col = "blue", main = "ROC Curve")
 
 ###################################################################
 # RANDOM FOREST for feature selection for logistic regression predictors
-# undersampled_data_selected_vars <- bind_rows(malignant_sample, benign_sample) %>%
-#  select(-patient_id, -isic_id, -iddx_full, -iddx_1, -iddx_2, -iddx_3,
-#         -iddx_4, -iddx_5, -mel_mitotic_index, -mel_thick_mm, -attribution,
-#         -lesion_id, -image_type, -tbp_lv_x, -tbp_lv_y, -tbp_lv_z) %>%
-#  na.omit()
+undersampled_data_rf_vars <- bind_rows(malignant_sample, benign_sample) %>%
+  select(target, tbp_lv_H, tbp_lv_Hext, tbp_lv_deltaB, tbp_lv_L,
+         tbp_lv_deltaLBnorm, tbp_lv_perimeterMM, tbp_lv_deltaA,
+         tbp_lv_B, tbp_lv_A, tbp_lv_Aext) %>%
+  na.omit()
+
+####################################################################
+# Shreya's RF variables in a logistic regression
+
+# ROC 0.9398
+glm_from_rf <- glm(target ~ tbp_lv_H + tbp_lv_Hext + tbp_lv_deltaB + tbp_lv_L +
+                   tbp_lv_deltaLBnorm + tbp_lv_perimeterMM + tbp_lv_deltaA +
+                   tbp_lv_B + tbp_lv_A + tbp_lv_Aext, data=undersampled_data_rf_vars,
+                   family=binomial(link="logit"))  
+
+# remove tbp_lv_deltaB because p-value = 0.52
+# ROC 0.9396
+glm_from_rf <- glm(target ~ tbp_lv_H + tbp_lv_Hext + tbp_lv_L +
+                     tbp_lv_deltaLBnorm + tbp_lv_perimeterMM + tbp_lv_deltaA +
+                     tbp_lv_B + tbp_lv_A + tbp_lv_Aext, data=undersampled_data_rf_vars,
+                   family=binomial(link="logit"))  
+
+# tbp_lv_deltaLBnorm has lowest p-value
+glm_from_rf <- glm(target ~ tbp_lv_deltaLBnorm + tbp_lv_perimeterMM + tbp_lv_Hext +
+                   tbp_lv_L + tbp_lv_B, 
+                   data=undersampled_data_rf_vars, family=binomial(link="logit"))
+
+# 2: 0.797
+# 3: 0.8653
+# 4: 0.8948
+# 5: 0.9069
+
+entire_dataset <- cancer_train %>%
+  select(target, tbp_lv_H, tbp_lv_Hext, tbp_lv_deltaB, tbp_lv_L,
+         tbp_lv_deltaLBnorm, tbp_lv_perimeterMM, tbp_lv_deltaA,
+         tbp_lv_B, tbp_lv_A, tbp_lv_Aext) %>%
+  na.omit()
+
+glm_entire_data <- glm(target ~ tbp_lv_deltaLBnorm + tbp_lv_perimeterMM + tbp_lv_Hext +
+                         tbp_lv_L + tbp_lv_B, 
+                       data=entire_dataset, family=binomial(link="logit"))
+
+
+summary(glm_from_rf)
+
+predicted_probs <- predict(glm_from_rf, type = "response")
+auc_result <- roc(undersampled_data_rf_vars$target, predicted_probs) 
+print(auc_result)
+plot(auc_result, col = "blue", main = "ROC Curve")
+
+summary(glm_entire_data)
+
+predicted_probs <- predict(glm_entire_data, type = "response")
+auc_result <- roc(entire_dataset$target, predicted_probs) 
+print(auc_result)
+plot(auc_result, col = "blue", main = "ROC Curve")
+
+# with the glm trained on the undersampled data, test on entire dataset
+# evaluate the logistic regression model (trained on undersampled data)
+# by predicting on the full original dataset
+pred <- predict(glm_from_rf, entire_dataset, type="response")
+pred <- as.integer(pred>0.5)
+confusionMatrix(as.factor(pred), as.factor(entire_dataset$target))
+
+# Load pROC library (install it if you haven't already)
+library(pROC)
+
+predicted_probs <- predict(glm_from_rf, entire_dataset, type = "response")
+roc_obj <- roc(entire_dataset$target, predicted_probs)
+plot(roc_obj, col = "blue", main = "ROC Curve - Logistic Regression")
+auc_value <- auc(roc_obj)
+legend("bottomright", legend = paste("AUC =", round(auc_value, 3)), col = "blue", lwd = 1)
+
