@@ -249,3 +249,23 @@ plot(roc_obj, col = "blue", main = "ROC Curve - Logistic Regression")
 auc_value <- auc(roc_obj)
 legend("bottomright", legend = paste("AUC =", round(auc_value, 3)), col = "blue", lwd = 1)
 
+###############################
+# LAB plot
+plot_data <- undersampled_data_rf_vars %>%
+  filter(!is.na(tbp_lv_A), !is.na(tbp_lv_B)) %>%
+  mutate(hex_color = hex(LAB(tbp_lv_L, tbp_lv_A, tbp_lv_B)),
+         target_label = factor(target, labels = c("Benign", "Malignant")))
+
+ggplot(plot_data, aes(x = tbp_lv_A, y = tbp_lv_B, color = hex_color)) +
+  geom_point(alpha = 0.7, size = 2) +
+  scale_color_identity() +
+  facet_wrap(~ target_label) +
+  labs(title = "Lesion Color in LAB Space",
+       x = "A chroma (Green ↔ Red)",
+       y = "B chroma (Blue ↔ Yellow)") +
+  theme_minimal() + theme(
+    plot.title = element_text(size = 18, face = "bold"),
+    axis.title = element_text(size = 16),
+    axis.text = element_text(size = 14),
+    strip.text = element_text(size = 16)  # for facet labels
+  )
